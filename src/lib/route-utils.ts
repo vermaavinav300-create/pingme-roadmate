@@ -14,6 +14,14 @@ export type RouteOption = {
   end: LatLng;
 };
 
+/** Route durations from the current route service are strings like "17557s" or "12.5s". */
+export function parseDurationSeconds(value: string | undefined | null): number {
+  if (!value) throw new Error("Missing route duration");
+  const match = /^(\d+(?:\.\d+)?)s$/.exec(value.trim());
+  if (!match) throw new Error(`Unrecognised duration: ${value}`);
+  return Number(match[1]);
+}
+
 /** Decodes an encoded polyline (precision 5, used by OpenRouteService) into lat/lng points. */
 export function decodePolyline(encoded: string): LatLng[] {
   const points: LatLng[] = [];
