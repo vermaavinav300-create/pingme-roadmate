@@ -147,6 +147,7 @@ function JourneyPage() {
               onSelectPlace={(place) => setSelectedPlaceId(place.id)}
               maxDetourKm={maxDetourKm}
               onMaxDetourChange={setMaxDetourKm}
+              journeyId={j.id}
             />
           </div>
 

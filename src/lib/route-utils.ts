@@ -150,3 +150,41 @@ export function buildJourneyRow(input: JourneyInput, userId: string) {
     duration_seconds: Math.round(route.durationSeconds),
   };
 }
+
+/**
+ * Calculates total polyline length in meters.
+ */
+export function getPolylineDistanceMeters(points: LatLng[]): number {
+  if (!points || points.length < 2) return 0;
+  let total = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    total += haversineMeters(points[i], points[i + 1]);
+  }
+  return total;
+}
+
+/**
+ * Computes the exact interpolated LatLng position along a polyline
+ * at a given target distance in meters from the start.
+ */
+export function getPointAlongPolyline(points: LatLng[], targetDistanceMeters: number): LatLng {
+  if (!points || points.length === 0) return { lat: 0, lng: 0 };
+  if (points.length === 1 || targetDistanceMeters <= 0) return points[0];
+
+  let accumulated = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i];
+    const b = points[i + 1];
+    const segDist = haversineMeters(a, b);
+    if (accumulated + segDist >= targetDistanceMeters) {
+      const remaining = targetDistanceMeters - accumulated;
+      const ratio = segDist > 0 ? remaining / segDist : 0;
+      return {
+        lat: a.lat + (b.lat - a.lat) * ratio,
+        lng: a.lng + (b.lng - a.lng) * ratio,
+      };
+    }
+    accumulated += segDist;
+  }
+  return points[points.length - 1];
+}

@@ -1,8 +1,33 @@
-import { useState, useMemo } from "react";
-import { UtensilsCrossed, Fuel, Hotel, Clock, Navigation, MapPin, SlidersHorizontal, AlertCircle, Phone, Info } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
+import {
+  UtensilsCrossed,
+  Fuel,
+  Hotel,
+  Clock,
+  Navigation,
+  MapPin,
+  SlidersHorizontal,
+  AlertCircle,
+  Phone,
+  Info,
+  ChevronRight,
+  BookmarkPlus,
+  Check,
+  Route as RouteIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { filterPlaces, estimateDetour, type RoutePlace, type PlaceCategory } from "@/lib/places-utils";
 import { formatDistance, formatDuration } from "@/lib/route-utils";
+import {
+  addJourneyStop,
+  removeJourneyStop,
+  listJourneyStops,
+  getUserPreferences,
+} from "@/lib/journeys.functions";
 
 type Props = {
   places: RoutePlace[];
@@ -11,6 +36,7 @@ type Props = {
   onSelectPlace: (place: RoutePlace) => void;
   maxDetourKm: number;
   onMaxDetourChange: (km: number) => void;
+  journeyId?: string;
 };
 
 export function RoutePlacesDiscovery({
@@ -20,8 +46,90 @@ export function RoutePlacesDiscovery({
   onSelectPlace,
   maxDetourKm,
   onMaxDetourChange,
+  journeyId,
 }: Props) {
   const [activeTab, setActiveTab] = useState<PlaceCategory>("restaurant");
+  const [addedStopsMap, setAddedStopsMap] = useState<Record<string, string>>({}); // placeId -> stopId
+
+  const addStopFn = useServerFn(addJourneyStop);
+  const removeStopFn = useServerFn(removeJourneyStop);
+  const listStopsFn = useServerFn(listJourneyStops);
+  const fetchPrefsFn = useServerFn(getUserPreferences);
+
+  // Load user saved preferences on mount to set defaults
+  useEffect(() => {
+    fetchPrefsFn()
+      .then((res) => {
+        if (res.preferences?.preferredMaxDetourKm) {
+          onMaxDetourChange(res.preferences.preferredMaxDetourKm);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Load already added stops for this journey
+  useEffect(() => {
+    if (!journeyId) return;
+    listStopsFn({ data: { journeyId } })
+      .then((res) => {
+        const map: Record<string, string> = {};
+        for (const s of res.stops) {
+          map[s.placeId] = s.id;
+        }
+        setAddedStopsMap(map);
+      })
+      .catch(() => {});
+  }, [journeyId]);
+
+  const handleToggleStop = async (e: React.MouseEvent, place: RoutePlace) => {
+    e.stopPropagation();
+    if (!journeyId) {
+      toast.info("Lock in this route to add stops to your journey.");
+      return;
+    }
+
+    const existingStopId = addedStopsMap[place.id];
+    const detour = estimateDetour(place.distanceFromRouteM);
+
+    if (existingStopId) {
+      try {
+        await removeStopFn({ data: { stopId: existingStopId } });
+        setAddedStopsMap((prev) => {
+          const copy = { ...prev };
+          delete copy[place.id];
+          return copy;
+        });
+        toast.success(`Removed ${place.name || place.kind} from journey stops.`);
+      } catch {
+        toast.error("Could not remove stop.");
+      }
+    } else {
+      try {
+        const res = await addStopFn({
+          data: {
+            journeyId,
+            placeId: place.id,
+            name: place.name || `Unnamed ${place.kind}`,
+            kind: place.kind,
+            category: place.category,
+            lat: place.lat,
+            lng: place.lng,
+            alongRouteM: place.alongRouteM,
+            distanceFromRouteM: place.distanceFromRouteM,
+            detourMeters: detour.meters,
+            detourSeconds: detour.seconds,
+            address: place.address ?? undefined,
+            phone: place.phone ?? undefined,
+            openingHours: place.openingHours ?? undefined,
+          },
+        });
+        setAddedStopsMap((prev) => ({ ...prev, [place.id]: res.stop.id }));
+        toast.success(`Added ${place.name || place.kind} to your upcoming stops!`);
+      } catch {
+        toast.error("Could not add stop to journey.");
+      }
+    }
+  };
 
   // Filter places based on active category and maximum detour limit
   const filteredPlaces = useMemo(() => {
@@ -71,6 +179,23 @@ export function RoutePlacesDiscovery({
           <span>10 km (wider range)</span>
         </div>
       </div>
+
+      {/* Active Journey Stops Banner */}
+      {journeyId && (
+        <div className="flex items-center justify-between rounded-xl bg-primary/10 border border-primary/20 px-3.5 py-2.5 text-xs font-medium text-foreground">
+          <div className="flex items-center gap-2">
+            <RouteIcon className="size-4 text-primary" />
+            <span>
+              <strong>{Object.keys(addedStopsMap).length}</strong> upcoming stop{Object.keys(addedStopsMap).length === 1 ? "" : "s"} selected
+            </span>
+          </div>
+          <Button asChild size="sm" variant="outline" className="h-7 text-xs font-bold px-2.5">
+            <Link to="/journeys" search={{ journeyId }}>
+              View My Journey <ChevronRight className="size-3 ml-0.5" />
+            </Link>
+          </Button>
+        </div>
+      )}
 
       {/* Category Tabs: Food, Fuel, Stays */}
       <div className="grid grid-cols-3 gap-1.5 rounded-lg bg-muted p-1">
@@ -194,14 +319,70 @@ export function RoutePlacesDiscovery({
                         <span>Phone: Not available</span>
                       )}
                     </div>
-
-                    {/* Zero-Fabrication Transparency Rule Notice */}
-                    <div className="mt-2 border-t pt-1.5 flex items-center gap-3 text-[10px] text-muted-foreground/75">
-                      <span>⭐ Rating: <em className="not-italic text-muted-foreground font-medium">Not available</em></span>
-                      <span>📷 Photos: <em className="not-italic text-muted-foreground font-medium">Not available</em></span>
-                    </div>
                   </div>
+
+                  {journeyId && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={addedStopsMap[place.id] ? "default" : "outline"}
+                      className={cn(
+                        "h-7 shrink-0 text-xs font-semibold gap-1 transition-all",
+                        addedStopsMap[place.id]
+                          ? "bg-emerald-600 hover:bg-emerald-700 text-white border-transparent"
+                          : "hover:border-primary text-muted-foreground hover:text-foreground"
+                      )}
+                      onClick={(e) => handleToggleStop(e, place)}
+                    >
+                      {addedStopsMap[place.id] ? (
+                        <>
+                          <Check className="size-3.5" /> Stop Added
+                        </>
+                      ) : (
+                        <>
+                          <BookmarkPlus className="size-3.5" /> + Add Stop
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
+
+                {/* Zero-Fabrication Transparency Rule Notice */}
+                <div className="mt-2 border-t pt-1.5 flex items-center gap-3 text-[10px] text-muted-foreground/75">
+                  <span>⭐ Rating: <em className="not-italic text-muted-foreground font-medium">Not available</em></span>
+                  <span>📷 Photos: <em className="not-italic text-muted-foreground font-medium">Not available</em></span>
+                </div>
+
+                {/* Stage 3: Advance Food Order & Table Reservation Action */}
+                {place.category === "restaurant" && (
+                  <div className="mt-3 flex items-center justify-between border-t pt-2.5">
+                    <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      <UtensilsCrossed className="size-3.5" /> Sample Menu & Tables
+                    </span>
+                    <Button
+                      asChild
+                      size="sm"
+                      variant="signal"
+                      className="h-7 text-xs font-bold gap-1"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Link
+                        to="/restaurants/$restaurantId"
+                        params={{ restaurantId: place.id }}
+                        search={{
+                          name: place.name ?? undefined,
+                          address: place.address ?? undefined,
+                          detourKm,
+                          detourMin: `${detourMin} min`,
+                          alongRouteM: String(place.alongRouteM),
+                          journeyId: journeyId ?? undefined,
+                        }}
+                      >
+                        Order / Reserve <ChevronRight className="size-3" />
+                      </Link>
+                    </Button>
+                  </div>
+                )}
               </div>
             );
           })}

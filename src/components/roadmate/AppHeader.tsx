@@ -32,6 +32,13 @@ export function AppHeader() {
           >
             My Journeys
           </Link>
+          <Link
+            to="/orders"
+            className="rounded-md px-3 py-1.5 text-muted-foreground transition hover:text-foreground"
+            activeProps={{ className: "bg-secondary text-secondary-foreground" }}
+          >
+            Orders & Requests
+          </Link>
         </nav>
         <Button
           variant="ghost"

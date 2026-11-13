@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildJourneyRow, decodePolyline, parseDurationSeconds, type RouteOption } from "./route-utils";
+import {
+  buildJourneyRow,
+  decodePolyline,
+  parseDurationSeconds,
+  getPointAlongPolyline,
+  getPolylineDistanceMeters,
+  type RouteOption,
+} from "./route-utils";
 
 describe("route utils", () => {
   it("parses Routes API durations without rounding", () => {
@@ -18,6 +25,28 @@ describe("route utils", () => {
       { lat: 40.7, lng: -120.95 },
       { lat: 43.252, lng: -126.453 },
     ]);
+  });
+
+  it("interpolates car position accurately along polyline points", () => {
+    const points = [
+      { lat: 28.0, lng: 77.0 },
+      { lat: 29.0, lng: 77.0 },
+    ];
+    const totalDist = getPolylineDistanceMeters(points);
+    expect(totalDist).toBeGreaterThan(100000); // ~111 km
+
+    // Start point
+    const atStart = getPointAlongPolyline(points, 0);
+    expect(atStart.lat).toBeCloseTo(28.0, 4);
+
+    // Midpoint
+    const atMid = getPointAlongPolyline(points, totalDist / 2);
+    expect(atMid.lat).toBeCloseTo(28.5, 2);
+    expect(atMid.lng).toBeCloseTo(77.0, 4);
+
+    // End point
+    const atEnd = getPointAlongPolyline(points, totalDist);
+    expect(atEnd.lat).toBeCloseTo(29.0, 4);
   });
 
   it("saves exactly the route the traveller selected", () => {

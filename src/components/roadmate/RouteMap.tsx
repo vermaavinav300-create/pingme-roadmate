@@ -10,6 +10,7 @@ type Props = {
   places?: RoutePlace[];
   selectedPlaceId?: string | null;
   onSelectPlace?: (place: RoutePlace) => void;
+  carPosition?: LatLng | null;
   className?: string;
 };
 
@@ -26,12 +27,14 @@ export function RouteMap({
   places = [],
   selectedPlaceId,
   onSelectPlace,
+  carPosition,
   className,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const layersGroupRef = useRef<any>(null);
   const placesGroupRef = useRef<any>(null);
+  const carMarkerRef = useRef<any>(null);
   const markersByIdRef = useRef<Map<string, any>>(new Map());
   const [ready, setReady] = useState(false);
 
@@ -209,6 +212,13 @@ export function RouteMap({
             <div style="color: #94a3b8; font-size: 11px; margin-top: 4px; border-top: 1px solid #e2e8f0; padding-top: 4px;">
               ⭐ Ratings: Not available | 📷 Photos: Not available
             </div>
+            ${place.category === "restaurant" ? `
+              <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #e2e8f0;">
+                <a href="/restaurants/${place.id}?name=${encodeURIComponent(place.name || '')}&address=${encodeURIComponent(place.address || '')}&detourKm=${detourKm}&detourMin=${detourMin}%20min&alongRouteM=${place.alongRouteM}" style="display: block; text-align: center; background-color: #059669; color: white; padding: 5px 8px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 11px;">
+                  🍽️ View Menu & Order / Reserve
+                </a>
+              </div>
+            ` : ""}
           </div>
         `;
 
@@ -233,6 +243,45 @@ export function RouteMap({
       mapInstanceRef.current.panTo(marker.getLatLng(), { animate: true, duration: 0.5 });
     }
   }, [selectedPlaceId]);
+
+  // Draw / Update Simulated Car Marker
+  useEffect(() => {
+    if (!ready || !mapInstanceRef.current || !layersGroupRef.current) return;
+    const layers = layersGroupRef.current;
+
+    if (!carPosition) {
+      if (carMarkerRef.current) {
+        layers.removeLayer(carMarkerRef.current);
+        carMarkerRef.current = null;
+      }
+      return;
+    }
+
+    import("leaflet").then((L) => {
+      if (carMarkerRef.current) {
+        carMarkerRef.current.setLatLng([carPosition.lat, carPosition.lng]);
+      } else {
+        const carIcon = L.divIcon({
+          className: "roadmate-car-marker",
+          html: `
+            <div style="background-color: #059669; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; border: 3px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.45);">
+              🚗
+            </div>
+          `,
+          iconSize: [34, 34],
+          iconAnchor: [17, 17],
+        });
+
+        const marker = L.marker([carPosition.lat, carPosition.lng], {
+          icon: carIcon,
+          zIndexOffset: 1200,
+        }).bindPopup("<b>Simulated Car (Demo)</b><br/>Driving along your locked route");
+
+        layers.addLayer(marker);
+        carMarkerRef.current = marker;
+      }
+    });
+  }, [ready, carPosition]);
 
   return (
     <div className={`relative overflow-hidden bg-muted ${className ?? ""}`}>

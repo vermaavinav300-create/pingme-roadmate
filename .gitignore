@@ -20,6 +20,12 @@ dist-ssr
 !.env.example
 *.local
 
+# Local SQLite databases
+data/
+*.sqlite
+*.sqlite3
+*.db
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars
