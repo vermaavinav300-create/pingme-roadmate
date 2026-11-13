@@ -71,8 +71,8 @@ export function routeTitle(route: Pick<RouteOption, "description" | "index">): s
 }
 
 export type JourneyInput = {
-  origin: { name: string; placeId?: string | null };
-  destination: { name: string; placeId?: string | null };
+  origin: { name: string; placeId?: string | null | undefined };
+  destination: { name: string; placeId?: string | null | undefined };
   route: RouteOption;
 };
 
