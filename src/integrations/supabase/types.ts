@@ -14,7 +14,99 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      journeys: {
+        Row: {
+          created_at: string
+          destination_lat: number
+          destination_lng: number
+          destination_name: string
+          destination_place_id: string | null
+          distance_meters: number
+          duration_seconds: number
+          encoded_polyline: string
+          id: string
+          origin_lat: number
+          origin_lng: number
+          origin_name: string
+          origin_place_id: string | null
+          route_description: string | null
+          route_index: number
+          route_label: string | null
+          share_token: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          destination_lat: number
+          destination_lng: number
+          destination_name: string
+          destination_place_id?: string | null
+          distance_meters: number
+          duration_seconds: number
+          encoded_polyline: string
+          id?: string
+          origin_lat: number
+          origin_lng: number
+          origin_name: string
+          origin_place_id?: string | null
+          route_description?: string | null
+          route_index?: number
+          route_label?: string | null
+          share_token?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          destination_lat?: number
+          destination_lng?: number
+          destination_name?: string
+          destination_place_id?: string | null
+          distance_meters?: number
+          duration_seconds?: number
+          encoded_polyline?: string
+          id?: string
+          origin_lat?: number
+          origin_lng?: number
+          origin_name?: string
+          origin_place_id?: string | null
+          route_description?: string | null
+          route_index?: number
+          route_label?: string | null
+          share_token?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+          preferences: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id: string
+          preferences?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          preferences?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

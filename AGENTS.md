@@ -28,3 +28,10 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Project rules
+- Google Maps server APIs (Routes, Places) are called only from `createServerFn` handlers via `src/lib/google-maps.server.ts` (connector gateway) and require a signed-in user — keeps keys server-side and bounds billable usage.
+- The browser loads Maps JS once through `src/lib/google-maps-loader.ts` with the browser key; polyline colors live in `src/lib/map-theme.ts` because Google Maps cannot read CSS variables.
+- Pure route math/formatting lives in `src/lib/route-utils.ts` (browser-safe, unit-tested) so server and UI share one definition.
+- Signed-in pages live under `src/routes/_authenticated/` (client-only gate); public pages are top-level.
+- Architecture and stage plan: `docs/ARCHITECTURE.md`; open work: `roadmap.md`.
