@@ -23,7 +23,7 @@ export async function googleMapsFetch(
   const response = await fetch(`${GATEWAY_URL}${path}`, {
     method: init.method ?? "POST",
     headers,
-    body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+    body: init.body !== undefined ? JSON.stringify(init.body) : null,
   });
 
   if (response.status === 403) {
