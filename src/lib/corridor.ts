@@ -75,3 +75,27 @@ export function measureAgainstRoute(
     alongM: corridor.cumulative[first.start]! + snapped.properties.location,
   };
 }
+
+/**
+ * Accurately measures a place against the entire route corridor.
+ */
+export function measureAgainstEntireCorridor(
+  corridor: Corridor,
+  place: LatLng,
+): { distanceM: number; alongM: number } {
+  if (corridor.points.length < 2) {
+    return {
+      distanceM: haversineMeters(corridor.points[0] ?? place, place),
+      alongM: 0,
+    };
+  }
+  const snapped = nearestPointOnLine(
+    lineString(corridor.points.map((p) => [p.lng, p.lat])),
+    point([place.lng, place.lat]),
+    { units: "meters" },
+  );
+  return {
+    distanceM: snapped.properties.dist ?? 0,
+    alongM: snapped.properties.location ?? 0,
+  };
+}

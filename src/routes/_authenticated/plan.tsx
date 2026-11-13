@@ -1,16 +1,18 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ArrowDownUp, Check, Clock, Gauge, Loader2, Lock, Navigation, TriangleAlert } from "lucide-react";
 import { AppHeader } from "@/components/roadmate/AppHeader";
 import { PlaceInput, type PlaceValue } from "@/components/roadmate/PlaceInput";
 import { RouteMap } from "@/components/roadmate/RouteMap";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { computeDrivingRoutes } from "@/lib/maps.functions";
 import { saveJourney } from "@/lib/journeys.functions";
 import { formatDistance, formatDuration, routeTitle, type RouteOption } from "@/lib/route-utils";
-import { cn } from "@/lib/utils";
+import { getRoutePlaces } from "@/lib/places.functions";
+import type { RoutePlace } from "@/lib/places-utils";
 
 export const Route = createFileRoute("/_authenticated/plan")({
   head: () => ({
@@ -28,6 +30,7 @@ export const Route = createFileRoute("/_authenticated/plan")({
 
 const EMPTY: PlaceValue = { name: "", placeId: null };
 const SAMPLES: Array<[string, string]> = [
+  ["Chandigarh", "Jaipur"],
   ["New Delhi", "Jaipur"],
   ["Mumbai", "Pune"],
   ["Bengaluru", "Mysuru"],
@@ -44,6 +47,27 @@ function PlanPage() {
   const [selected, setSelected] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const fetchPlaces = useServerFn(getRoutePlaces);
+  const [places, setPlaces] = useState<RoutePlace[]>([]);
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
+
+  const selectedRoute = routes.find((r) => r.index === selected) ?? null;
+
+  useEffect(() => {
+    if (!selectedRoute?.encodedPolyline) {
+      setPlaces([]);
+      return;
+    }
+    let active = true;
+    fetchPlaces({ data: { encodedPolyline: selectedRoute.encodedPolyline, searchRadiusM: 8000 } })
+      .then((res) => {
+        if (active) setPlaces(res.places);
+      })
+      .catch((err) => console.error("Could not fetch preview places:", err));
+    return () => {
+      active = false;
+    };
+  }, [selectedRoute?.encodedPolyline, fetchPlaces]);
 
   const fastest = useMemo(
     () => routes.reduce<RouteOption | null>((b, r) => (!b || r.durationSeconds < b.durationSeconds ? r : b), null)?.index,
@@ -53,7 +77,6 @@ function PlanPage() {
     () => routes.reduce<RouteOption | null>((b, r) => (!b || r.distanceMeters < b.distanceMeters ? r : b), null)?.index,
     [routes],
   );
-  const selectedRoute = routes.find((r) => r.index === selected) ?? null;
 
   async function search(o = origin, d = destination) {
     if (o.name.trim().length < 2 || d.name.trim().length < 2) {
@@ -224,7 +247,7 @@ function PlanPage() {
                     </button>
                   );
                 })}
-                <p className="text-[11px] text-muted-foreground">Times are typical, without live traffic. Route data © Google.</p>
+                <p className="text-[11px] text-muted-foreground">Times are typical, without live traffic. Route data © OpenStreetMap / OSRM.</p>
               </div>
             )}
           </div>
@@ -245,6 +268,9 @@ function PlanPage() {
           routes={routes}
           selectedIndex={selected}
           onSelect={setSelected}
+          places={places}
+          selectedPlaceId={selectedPlaceId}
+          onSelectPlace={(p) => setSelectedPlaceId(p.id)}
           className="h-[42vh] w-full lg:h-auto lg:flex-1"
         />
       </div>

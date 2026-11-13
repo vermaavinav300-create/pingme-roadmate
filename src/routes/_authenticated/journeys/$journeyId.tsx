@@ -1,14 +1,17 @@
 import { createFileRoute, Link, notFound, useNavigate } from "@tanstack/react-router";
 import { queryOptions, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Clock, Fuel, Gauge, Hotel, Lock, Trash2, UtensilsCrossed } from "lucide-react";
+import { ArrowLeft, Clock, Gauge, Lock, Trash2 } from "lucide-react";
 import { AppHeader } from "@/components/roadmate/AppHeader";
 import { RouteMap } from "@/components/roadmate/RouteMap";
+import { RoutePlacesDiscovery } from "@/components/roadmate/RoutePlacesDiscovery";
 import { Button } from "@/components/ui/button";
 import { deleteJourney, getJourney } from "@/lib/journeys.functions";
+import { getRoutePlaces } from "@/lib/places.functions";
 import { formatDistance, formatDuration, type RouteOption } from "@/lib/route-utils";
+import type { RoutePlace } from "@/lib/places-utils";
 
 const journeyQuery = (id: string) =>
   queryOptions({ queryKey: ["journey", id], queryFn: () => getJourney({ data: { id } }) });
@@ -47,7 +50,13 @@ function JourneyPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const remove = useServerFn(deleteJourney);
+  const fetchPlaces = useServerFn(getRoutePlaces);
+
   const [deleting, setDeleting] = useState(false);
+  const [places, setPlaces] = useState<RoutePlace[]>([]);
+  const [loadingPlaces, setLoadingPlaces] = useState(true);
+  const [maxDetourKm, setMaxDetourKm] = useState(5);
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
 
   const route = useMemo<RouteOption[]>(
     () =>
@@ -69,13 +78,42 @@ function JourneyPage() {
     [j],
   );
 
+  // Fetch Stage 2 places along the corridor using Overpass API
+  useEffect(() => {
+    if (!j?.encoded_polyline) return;
+    let active = true;
+    setLoadingPlaces(true);
+
+    fetchPlaces({
+      data: {
+        encodedPolyline: j.encoded_polyline,
+        searchRadiusM: 10000,
+      },
+    })
+      .then((res) => {
+        if (active) {
+          setPlaces(res.places);
+        }
+      })
+      .catch((err) => {
+        console.error("Could not load stops along route:", err);
+      })
+      .finally(() => {
+        if (active) setLoadingPlaces(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [j?.encoded_polyline, fetchPlaces]);
+
   if (!j) return null;
 
   return (
     <div className="flex h-screen flex-col">
       <AppHeader />
       <div className="flex min-h-0 flex-1 flex-col-reverse lg:flex-row">
-        <aside className="w-full overflow-y-auto border-r p-5 lg:w-[440px]">
+        <aside className="w-full overflow-y-auto border-r p-5 lg:w-[460px]">
           <Link to="/journeys" className="mb-4 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground">
             <ArrowLeft className="size-4" /> My Journeys
           </Link>
@@ -100,19 +138,17 @@ function JourneyPage() {
             This is the exact route you selected. RoadMate never re-routes you silently — to change it, plan a new trip.
           </p>
 
-          <h2 className="mt-8 text-lg font-bold">Stops along this route</h2>
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            {[
-              { icon: UtensilsCrossed, label: "Food" },
-              { icon: Fuel, label: "Fuel" },
-              { icon: Hotel, label: "Stays" },
-            ].map((c) => (
-              <div key={c.label} className="flex flex-col items-center gap-1 rounded-xl border border-dashed p-3 text-xs font-semibold text-muted-foreground">
-                <c.icon className="size-5" /> {c.label}
-              </div>
-            ))}
+          <div className="mt-6">
+            <h2 className="mb-3 text-lg font-bold">Stops along this route</h2>
+            <RoutePlacesDiscovery
+              places={places}
+              loading={loadingPlaces}
+              selectedPlaceId={selectedPlaceId}
+              onSelectPlace={(place) => setSelectedPlaceId(place.id)}
+              maxDetourKm={maxDetourKm}
+              onMaxDetourChange={setMaxDetourKm}
+            />
           </div>
-          <p className="mt-2 text-xs text-muted-foreground">Route-based discovery is the next stage being built.</p>
 
           <Button
             variant="ghost"
@@ -136,7 +172,14 @@ function JourneyPage() {
             <Trash2 /> Delete journey
           </Button>
         </aside>
-        <RouteMap routes={route} selectedIndex={j.route_index} className="h-[42vh] w-full lg:h-auto lg:flex-1" />
+        <RouteMap
+          routes={route}
+          selectedIndex={j.route_index}
+          places={places.filter((p) => (p.distanceFromRouteM * 2) <= maxDetourKm * 1000)}
+          selectedPlaceId={selectedPlaceId}
+          onSelectPlace={(place) => setSelectedPlaceId(place.id)}
+          className="h-[42vh] w-full lg:h-auto lg:flex-1"
+        />
       </div>
     </div>
   );

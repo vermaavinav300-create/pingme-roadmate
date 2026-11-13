@@ -89,6 +89,33 @@ function AuthPage() {
     }
   }
 
+  async function demoSignIn() {
+    setBusy(true);
+    try {
+      const demoEmail = "demo@roadmate.app";
+      const demoPassword = "DemoPassword123!";
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: demoEmail,
+        password: demoPassword,
+      });
+
+      if (signInErr) {
+        const { error: signUpErr } = await supabase.auth.signUp({
+          email: demoEmail,
+          password: demoPassword,
+          options: { data: { full_name: "RoadMate Explorer" } },
+        });
+        if (signUpErr) throw signUpErr;
+      }
+      toast.success("Welcome, Demo Explorer!");
+      navigate({ to: target });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Demo sign-in failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function oauth(provider: "google" | "lovable") {
     const result = await lovable.auth.signInWithOAuth(provider, { redirect_uri: window.location.origin + "/auth" });
     if (result.error) toast.error(result.error.message ?? "Sign-in failed");
@@ -133,6 +160,17 @@ function AuthPage() {
               </p>
 
               <div className="mt-6 grid gap-2.5">
+                <Button
+                  type="button"
+                  variant="signal"
+                  size="xl"
+                  className="w-full font-bold"
+                  onClick={demoSignIn}
+                  disabled={busy}
+                >
+                  ⚡ One-Click Instant Sign In (Demo)
+                </Button>
+
                 <Button variant="google" size="xl" className="w-full" onClick={() => oauth("google")}>
                   <GoogleG /> Continue with Google
                 </Button>
