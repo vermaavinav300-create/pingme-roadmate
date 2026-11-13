@@ -4,7 +4,7 @@ import { fetchPlacesAlongCorridor } from "./overpass.server";
 import type { RoutePlace } from "./places-utils";
 
 export const getRoutePlaces = createServerFn({ method: "POST" })
-  .inputValidator((input) =>
+  .validator((input: unknown) =>
     z
       .object({
         encodedPolyline: z.string().min(5),

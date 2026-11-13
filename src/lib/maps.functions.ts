@@ -7,7 +7,7 @@ export type PlaceSuggestion = { placeId: string; mainText: string; secondaryText
 const USER_AGENT = "PingME-RoadMate/1.0 (Hackathon Prototype; https://github.com/vermaavinav300-create/pingme-roadmate)";
 
 export const autocompletePlaces = createServerFn({ method: "POST" })
-  .inputValidator((input) =>
+  .validator((input: unknown) =>
     z
       .object({ input: z.string().trim().min(2).max(120), sessionToken: z.string().uuid().optional() })
       .parse(input),
@@ -166,7 +166,7 @@ export async function calculateDrivingRoute(
 }
 
 export const computeDrivingRoutes = createServerFn({ method: "POST" })
-  .inputValidator((input) =>
+  .validator((input: unknown) =>
     z.object({ origin: endpointSchema, destination: endpointSchema }).parse(input),
   )
   .handler(async ({ data }): Promise<{ routes: RouteOption[] }> => {
