@@ -1,15 +1,26 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 
-// Signed-in area. The session lives in the browser, so this gate runs client-side only.
+// Public & signed-in area. Supports both signed-in users and instant guest access.
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
-  beforeLoad: async ({ location }) => {
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) {
-      throw redirect({ to: "/auth", search: { redirect: location.href } });
+  beforeLoad: async () => {
+    try {
+      const { data } = await supabase.auth.getUser();
+      if (data?.user) {
+        return { user: data.user };
+      }
+    } catch {
+      // Supabase not configured or offline
     }
-    return { user: data.user };
+    // Default guest session so anyone with the link can explore and plan freely
+    return {
+      user: {
+        id: "guest-user",
+        email: "guest@roadmate.app",
+        user_metadata: { full_name: "RoadMate Explorer" },
+      },
+    };
   },
   component: () => <Outlet />,
 });

@@ -68,14 +68,16 @@ export const saveJourney = createServerFn({ method: "POST" })
     });
 
     // 2. Also save to Supabase cloud if available
-    try {
-      const rowData = {
-        ...buildJourneyRow(data, context.userId),
-        id: journeyId,
-      };
-      await context.supabase.from("journeys").insert(rowData);
-    } catch (err) {
-      console.warn("Could not mirror journey to Supabase (using SQLite):", err);
+    if (context.supabase) {
+      try {
+        const rowData = {
+          ...buildJourneyRow(data, context.userId),
+          id: journeyId,
+        };
+        await context.supabase.from("journeys").insert(rowData);
+      } catch (err) {
+        console.warn("Could not mirror journey to Supabase (using SQLite):", err);
+      }
     }
 
     return { id: journeyId };
@@ -89,17 +91,19 @@ export const listJourneys = createServerFn({ method: "GET" })
 
     // 2. Load from Supabase if connected
     let cloudRows: any[] = [];
-    try {
-      const { data } = await context.supabase
-        .from("journeys")
-        .select(
-          "id, origin_name, destination_name, route_description, distance_meters, duration_seconds, status, created_at",
-        )
-        .order("created_at", { ascending: false })
-        .limit(50);
-      if (data) cloudRows = data;
-    } catch {
-      // Supabase not reachable or table not ready, local storage handles it
+    if (context.supabase) {
+      try {
+        const { data } = await context.supabase
+          .from("journeys")
+          .select(
+            "id, origin_name, destination_name, route_description, distance_meters, duration_seconds, status, created_at",
+          )
+          .order("created_at", { ascending: false })
+          .limit(50);
+        if (data) cloudRows = data;
+      } catch {
+        // Supabase not reachable or table not ready, local storage handles it
+      }
     }
 
     // Merge without duplicates
@@ -158,16 +162,18 @@ export const getJourney = createServerFn({ method: "GET" })
       };
     }
 
-    // Fall back to Supabase
-    try {
-      const { data: row } = await context.supabase
-        .from("journeys")
-        .select("*")
-        .eq("id", data.id)
-        .maybeSingle();
-      if (row) return row;
-    } catch {
-      // fallback
+    // Fall back to Supabase if connected
+    if (context.supabase) {
+      try {
+        const { data: row } = await context.supabase
+          .from("journeys")
+          .select("*")
+          .eq("id", data.id)
+          .maybeSingle();
+        if (row) return row;
+      } catch {
+        // fallback
+      }
     }
 
     return null;
@@ -180,13 +186,15 @@ export const renameJourney = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     renameLocalJourney(data.id, data.newTitle);
-    try {
-      await context.supabase
-        .from("journeys")
-        .update({ route_description: data.newTitle, route_label: data.newTitle })
-        .eq("id", data.id);
-    } catch {
-      // handled
+    if (context.supabase) {
+      try {
+        await context.supabase
+          .from("journeys")
+          .update({ route_description: data.newTitle, route_label: data.newTitle })
+          .eq("id", data.id);
+      } catch {
+        // handled
+      }
     }
     return { ok: true, id: data.id, newTitle: data.newTitle };
   });
@@ -196,10 +204,12 @@ export const deleteJourney = createServerFn({ method: "POST" })
   .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     deleteLocalJourney(data.id);
-    try {
-      await context.supabase.from("journeys").delete().eq("id", data.id);
-    } catch {
-      // handled
+    if (context.supabase) {
+      try {
+        await context.supabase.from("journeys").delete().eq("id", data.id);
+      } catch {
+        // handled
+      }
     }
     return { ok: true };
   });

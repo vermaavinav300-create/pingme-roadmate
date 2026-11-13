@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import os from "node:os";
 
 export type OrderStatus = "submitted" | "sent_to_restaurant" | "confirmed";
 
@@ -107,7 +108,17 @@ let dbInstance: DatabaseSync | null = null;
 function getDb(): DatabaseSync {
   if (dbInstance) return dbInstance;
 
-  const dataDir = path.resolve(process.cwd(), "data");
+  // In serverless environments (like Vercel or AWS Lambda), process.cwd() is read-only.
+  // We use os.tmpdir() (/tmp) where writing is allowed.
+  const isServerless = Boolean(
+    process.env.VERCEL ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.LAMBDA_TASK_ROOT
+  );
+  const dataDir = isServerless
+    ? path.join(os.tmpdir(), "roadmate_data")
+    : path.resolve(process.cwd(), "data");
+
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
