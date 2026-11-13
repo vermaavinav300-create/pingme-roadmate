@@ -8,6 +8,13 @@
       "when": 1794591102201,
       "tag": "0000_profiles_and_journeys",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794593425627,
+      "tag": "0001_journey_places_cache",
+      "breakpoints": true
     }
   ]
 }

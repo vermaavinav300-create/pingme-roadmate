@@ -14,6 +14,38 @@ export type Database = {
   }
   public: {
     Tables: {
+      journey_place_segments: {
+        Row: {
+          fetched_at: string
+          journey_id: string
+          places: Json
+          segment_index: number
+          user_id: string
+        }
+        Insert: {
+          fetched_at?: string
+          journey_id: string
+          places?: Json
+          segment_index: number
+          user_id: string
+        }
+        Update: {
+          fetched_at?: string
+          journey_id?: string
+          places?: Json
+          segment_index?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journey_place_segments_journey_id_fkey"
+            columns: ["journey_id"]
+            isOneToOne: false
+            referencedRelation: "journeys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       journeys: {
         Row: {
           created_at: string
