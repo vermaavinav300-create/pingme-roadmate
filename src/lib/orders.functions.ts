@@ -7,8 +7,14 @@ import {
   listReservationsFromDb,
   advanceOrderStatusInDb,
   advanceReservationStatusInDb,
+  saveHotelReservationToDb,
+  listHotelReservationsFromDb,
+  advanceHotelReservationStatusInDb,
+  updateMerchantOrderStatusInDb,
+  markPaymentStatusInDb,
   type DbOrder,
   type DbReservation,
+  type DbHotelReservation,
   type OrderStatus,
 } from "./orders-db.server";
 
@@ -120,7 +126,8 @@ export const requestTableReservation = createServerFn({ method: "POST" })
 export const listOrdersAndReservations = createServerFn({ method: "GET" }).handler(async () => {
   const orders = listOrdersFromDb();
   const reservations = listReservationsFromDb();
-  return { orders, reservations };
+  const hotelReservations = listHotelReservationsFromDb();
+  return { orders, reservations, hotelReservations };
 });
 
 export const advanceOrderStatus = createServerFn({ method: "POST" })
@@ -136,3 +143,87 @@ export const advanceReservationStatus = createServerFn({ method: "POST" })
     const nextStatus = advanceReservationStatusInDb(data.reservationId);
     return { reservationId: data.reservationId, newStatus: nextStatus };
   });
+
+const hotelBookingSchema = z.object({
+  journeyId: z.string().nullish(),
+  hotelId: z.string().min(1),
+  hotelName: z.string().min(1),
+  hotelAddress: z.string().nullish(),
+  detourText: z.string().nullish(),
+  checkIn: z.string().min(1),
+  guestCount: z.number().int().min(1).max(20),
+  roomCount: z.number().int().min(1).max(10),
+  roomType: z.string().min(1),
+  customerName: z.string().trim().min(2),
+  customerPhone: z.string().trim().min(10),
+  specialRequests: z.string().max(500).nullish(),
+  paymentMethod: z.enum(["upi_at_checkin", "upi_advance", "pay_at_hotel"]).default("pay_at_hotel"),
+  totalAmount: z.number().int().min(1),
+});
+
+export const requestHotelReservation = createServerFn({ method: "POST" })
+  .validator((input: unknown) => hotelBookingSchema.parse(input))
+  .handler(async ({ data }) => {
+    const digitsOnly = data.customerPhone.replace(/\D/g, "");
+    if (digitsOnly.length < 10) {
+      throw new Error("Please enter a valid 10-digit mobile phone number.");
+    }
+
+    const saved = saveHotelReservationToDb({
+      userId: "explorer-user",
+      journeyId: data.journeyId ?? null,
+      hotelId: data.hotelId,
+      hotelName: data.hotelName,
+      hotelAddress: data.hotelAddress ?? null,
+      detourText: data.detourText ?? null,
+      checkIn: data.checkIn,
+      guestCount: data.guestCount,
+      roomCount: data.roomCount,
+      roomType: data.roomType,
+      customerName: data.customerName,
+      customerPhone: data.customerPhone,
+      specialRequests: data.specialRequests ?? null,
+      paymentMethod: data.paymentMethod,
+      totalAmount: data.totalAmount,
+    });
+
+    return { reservation: saved };
+  });
+
+export const advanceHotelReservationStatus = createServerFn({ method: "POST" })
+  .validator((input: unknown) => z.object({ reservationId: z.string().uuid() }).parse(input))
+  .handler(async ({ data }) => {
+    const nextStatus = advanceHotelReservationStatusInDb(data.reservationId);
+    return { reservationId: data.reservationId, newStatus: nextStatus };
+  });
+
+export const updateMerchantStatus = createServerFn({ method: "POST" })
+  .validator((input: unknown) =>
+    z
+      .object({
+        type: z.enum(["order", "table", "hotel"]),
+        id: z.string().uuid(),
+        newStatus: z.enum(["submitted", "sent_to_restaurant", "confirmed"]),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    updateMerchantOrderStatusInDb(data.type, data.id, data.newStatus);
+    return { ok: true, id: data.id, status: data.newStatus };
+  });
+
+export const verifyUpiPayment = createServerFn({ method: "POST" })
+  .validator((input: unknown) =>
+    z
+      .object({
+        type: z.enum(["order", "table", "hotel"]),
+        id: z.string().uuid(),
+        upiRef: z.string().min(6),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    markPaymentStatusInDb(data.type, data.id, data.upiRef);
+    return { ok: true, id: data.id, upiRef: data.upiRef, status: "paid" };
+  });
+

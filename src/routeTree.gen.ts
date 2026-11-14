@@ -12,8 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedMerchantRouteImport } from './routes/_authenticated/merchant'
 import { Route as AuthenticatedOrdersRouteImport } from './routes/_authenticated/orders'
 import { Route as AuthenticatedPlanRouteImport } from './routes/_authenticated/plan'
+import { Route as AuthenticatedHotelsHotelIdRouteImport } from './routes/_authenticated/hotels/$hotelId'
 import { Route as AuthenticatedJourneysIndexRouteImport } from './routes/_authenticated/journeys/index'
 import { Route as AuthenticatedJourneysJourneyIdRouteImport } from './routes/_authenticated/journeys/$journeyId'
 import { Route as AuthenticatedRestaurantsRestaurantIdRouteImport } from './routes/_authenticated/restaurants/$restaurantId'
@@ -32,6 +34,11 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedMerchantRoute = AuthenticatedMerchantRouteImport.update({
+  id: '/merchant',
+  path: '/merchant',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedOrdersRoute = AuthenticatedOrdersRouteImport.update({
   id: '/orders',
   path: '/orders',
@@ -42,6 +49,12 @@ const AuthenticatedPlanRoute = AuthenticatedPlanRouteImport.update({
   path: '/plan',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedHotelsHotelIdRoute =
+  AuthenticatedHotelsHotelIdRouteImport.update({
+    id: '/hotels/$hotelId',
+    path: '/hotels/$hotelId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedJourneysIndexRoute =
   AuthenticatedJourneysIndexRouteImport.update({
     id: '/journeys/',
@@ -64,8 +77,10 @@ const AuthenticatedRestaurantsRestaurantIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/merchant': typeof AuthenticatedMerchantRoute
   '/orders': typeof AuthenticatedOrdersRoute
   '/plan': typeof AuthenticatedPlanRoute
+  '/hotels/$hotelId': typeof AuthenticatedHotelsHotelIdRoute
   '/journeys/$journeyId': typeof AuthenticatedJourneysJourneyIdRoute
   '/restaurants/$restaurantId': typeof AuthenticatedRestaurantsRestaurantIdRoute
   '/journeys/': typeof AuthenticatedJourneysIndexRoute
@@ -73,8 +88,10 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/merchant': typeof AuthenticatedMerchantRoute
   '/orders': typeof AuthenticatedOrdersRoute
   '/plan': typeof AuthenticatedPlanRoute
+  '/hotels/$hotelId': typeof AuthenticatedHotelsHotelIdRoute
   '/journeys/$journeyId': typeof AuthenticatedJourneysJourneyIdRoute
   '/restaurants/$restaurantId': typeof AuthenticatedRestaurantsRestaurantIdRoute
   '/journeys': typeof AuthenticatedJourneysIndexRoute
@@ -84,8 +101,10 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/_authenticated/merchant': typeof AuthenticatedMerchantRoute
   '/_authenticated/orders': typeof AuthenticatedOrdersRoute
   '/_authenticated/plan': typeof AuthenticatedPlanRoute
+  '/_authenticated/hotels/$hotelId': typeof AuthenticatedHotelsHotelIdRoute
   '/_authenticated/journeys/$journeyId': typeof AuthenticatedJourneysJourneyIdRoute
   '/_authenticated/restaurants/$restaurantId': typeof AuthenticatedRestaurantsRestaurantIdRoute
   '/_authenticated/journeys/': typeof AuthenticatedJourneysIndexRoute
@@ -95,8 +114,10 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/merchant'
     | '/orders'
     | '/plan'
+    | '/hotels/$hotelId'
     | '/journeys/$journeyId'
     | '/restaurants/$restaurantId'
     | '/journeys/'
@@ -104,8 +125,10 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/merchant'
     | '/orders'
     | '/plan'
+    | '/hotels/$hotelId'
     | '/journeys/$journeyId'
     | '/restaurants/$restaurantId'
     | '/journeys'
@@ -114,8 +137,10 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/_authenticated/merchant'
     | '/_authenticated/orders'
     | '/_authenticated/plan'
+    | '/_authenticated/hotels/$hotelId'
     | '/_authenticated/journeys/$journeyId'
     | '/_authenticated/restaurants/$restaurantId'
     | '/_authenticated/journeys/'
@@ -150,6 +175,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/merchant': {
+      id: '/_authenticated/merchant'
+      path: '/merchant'
+      fullPath: '/merchant'
+      preLoaderRoute: typeof AuthenticatedMerchantRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/orders': {
       id: '/_authenticated/orders'
       path: '/orders'
@@ -162,6 +194,13 @@ declare module '@tanstack/react-router' {
       path: '/plan'
       fullPath: '/plan'
       preLoaderRoute: typeof AuthenticatedPlanRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/hotels/$hotelId': {
+      id: '/_authenticated/hotels/$hotelId'
+      path: '/hotels/$hotelId'
+      fullPath: '/hotels/$hotelId'
+      preLoaderRoute: typeof AuthenticatedHotelsHotelIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/journeys/': {
@@ -189,16 +228,20 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedMerchantRoute: typeof AuthenticatedMerchantRoute
   AuthenticatedOrdersRoute: typeof AuthenticatedOrdersRoute
   AuthenticatedPlanRoute: typeof AuthenticatedPlanRoute
+  AuthenticatedHotelsHotelIdRoute: typeof AuthenticatedHotelsHotelIdRoute
   AuthenticatedJourneysJourneyIdRoute: typeof AuthenticatedJourneysJourneyIdRoute
   AuthenticatedRestaurantsRestaurantIdRoute: typeof AuthenticatedRestaurantsRestaurantIdRoute
   AuthenticatedJourneysIndexRoute: typeof AuthenticatedJourneysIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedMerchantRoute: AuthenticatedMerchantRoute,
   AuthenticatedOrdersRoute: AuthenticatedOrdersRoute,
   AuthenticatedPlanRoute: AuthenticatedPlanRoute,
+  AuthenticatedHotelsHotelIdRoute: AuthenticatedHotelsHotelIdRoute,
   AuthenticatedJourneysJourneyIdRoute: AuthenticatedJourneysJourneyIdRoute,
   AuthenticatedRestaurantsRestaurantIdRoute:
     AuthenticatedRestaurantsRestaurantIdRoute,

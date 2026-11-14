@@ -21,15 +21,19 @@ import {
   Smartphone,
   Banknote,
   Check,
+  Hotel,
+  Building,
 } from "lucide-react";
 import { AppHeader } from "@/components/roadmate/AppHeader";
 import { Button } from "@/components/ui/button";
+import { UpiPaymentDialog } from "@/components/roadmate/UpiPaymentDialog";
 import {
   listOrdersAndReservations,
   advanceOrderStatus,
   advanceReservationStatus,
+  advanceHotelReservationStatus,
 } from "@/lib/orders.functions";
-import type { DbOrder, DbReservation, OrderStatus } from "@/lib/orders-db.server";
+import type { DbOrder, DbReservation, DbHotelReservation, OrderStatus } from "@/lib/orders-db.server";
 
 export const Route = createFileRoute("/_authenticated/orders")({
   head: () => ({
@@ -94,22 +98,33 @@ function OrdersPage() {
   const fetchAll = useServerFn(listOrdersAndReservations);
   const advanceOrderFn = useServerFn(advanceOrderStatus);
   const advanceReservationFn = useServerFn(advanceReservationStatus);
+  const advanceHotelFn = useServerFn(advanceHotelReservationStatus);
 
   const [orders, setOrders] = useState<DbOrder[]>([]);
   const [reservations, setReservations] = useState<DbReservation[]>([]);
+  const [hotelReservations, setHotelReservations] = useState<DbHotelReservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [simulatingId, setSimulatingId] = useState<string | null>(null);
   const [expandedQrId, setExpandedQrId] = useState<string | null>(null);
 
-  // Tab filter: "all" | "orders" | "reservations"
-  const [activeTab, setActiveTab] = useState<"all" | "orders" | "reservations">("all");
+  // Dynamic UPI Payment Dialog state
+  const [upiModal, setUpiModal] = useState<{
+    id: string;
+    name: string;
+    amount: number;
+    type: "order" | "table" | "hotel";
+  } | null>(null);
+
+  // Tab filter: "all" | "orders" | "reservations" | "hotels"
+  const [activeTab, setActiveTab] = useState<"all" | "orders" | "reservations" | "hotels">("all");
 
   const loadData = async () => {
     setLoading(true);
     try {
       const res = await fetchAll();
-      setOrders(res.orders);
-      setReservations(res.reservations);
+      setOrders(res.orders || []);
+      setReservations(res.reservations || []);
+      setHotelReservations(res.hotelReservations || []);
     } catch (err) {
       toast.error("Could not load orders and reservations.");
     } finally {
@@ -120,6 +135,22 @@ function OrdersPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleAdvanceHotel = async (reservationId: string) => {
+    setSimulatingId(reservationId);
+    try {
+      const res = await advanceHotelFn({ data: { reservationId } });
+      const nextLabel = formatStatusLabel(res.newStatus).label;
+      toast.success(`Hotel booking status updated to: ${nextLabel}`);
+      setHotelReservations((prev) =>
+        prev.map((h) => (h.id === reservationId ? { ...h, status: res.newStatus } : h)),
+      );
+    } catch {
+      toast.error("Could not simulate hotel response.");
+    } finally {
+      setSimulatingId(null);
+    }
+  };
 
   // Advance Order Status Simulation
   const handleAdvanceOrder = async (orderId: string) => {
@@ -155,11 +186,24 @@ function OrdersPage() {
     }
   };
 
-  const totalCount = orders.length + reservations.length;
+  const totalCount = orders.length + reservations.length + hotelReservations.length;
 
   return (
     <div className="min-h-screen bg-background">
       <AppHeader />
+      {upiModal && (
+        <UpiPaymentDialog
+          open={Boolean(upiModal)}
+          onOpenChange={(open) => !open && setUpiModal(null)}
+          payeeName={upiModal.name}
+          amount={upiModal.amount}
+          orderId={upiModal.id}
+          orderType={upiModal.type}
+          onPaymentSuccess={() => {
+            loadData();
+          }}
+        />
+      )}
 
       <main className="mx-auto max-w-[1200px] px-4 py-8">
         {/* Page Title & Refresh */}
@@ -169,23 +213,30 @@ function OrdersPage() {
               Orders & Requests
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Review your advance food orders and table reservations. Real persistent storage saved on your device.
+              Review your advance food orders, table reservations, and hotel room bookings.
             </p>
           </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={loadData}
-            disabled={loading}
-            className="self-start gap-1.5 sm:self-auto"
-          >
-            <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} /> Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm" className="gap-1.5 text-xs font-bold text-emerald-600 border-emerald-500/30">
+              <Link to="/merchant">
+                <Building className="size-3.5" /> Merchant Tablet Terminal
+              </Link>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={loadData}
+              disabled={loading}
+              className="self-start gap-1.5 sm:self-auto text-xs"
+            >
+              <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} /> Refresh
+            </Button>
+          </div>
         </div>
 
-        {/* Category Tabs: All, Food Orders, Reservations */}
+        {/* Category Tabs: All, Food Orders, Reservations, Hotels */}
         <div className="mt-6 flex flex-wrap items-center gap-2 border-b pb-3">
           <button
             type="button"
@@ -207,7 +258,7 @@ function OrdersPage() {
                 : "bg-muted text-muted-foreground hover:text-foreground"
             }`}
           >
-            <ShoppingBag className="size-3.5 text-orange-500" /> Food Orders ({orders.length})
+            <ShoppingBag className="size-3.5" /> Food Orders ({orders.length})
           </button>
           <button
             type="button"
@@ -218,7 +269,18 @@ function OrdersPage() {
                 : "bg-muted text-muted-foreground hover:text-foreground"
             }`}
           >
-            <Users className="size-3.5 text-purple-500" /> Table Reservations ({reservations.length})
+            <Users className="size-3.5" /> Table Requests ({reservations.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("hotels")}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+              activeTab === "hotels"
+                ? "bg-primary text-primary-foreground shadow-xs"
+                : "bg-muted text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Hotel className="size-3.5" /> Hotel Stays ({hotelReservations.length})
           </button>
         </div>
 
@@ -549,6 +611,126 @@ function OrdersPage() {
                     <div className="mt-3 flex items-center justify-between border-t pt-2 text-[10px] text-muted-foreground/80">
                       <span>{res.prototypeDisclaimer}</span>
                       <span>Requested on {new Date(res.createdAt).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                );
+              })}
+
+            {/* HOTEL ROOM RESERVATIONS */}
+            {(activeTab === "all" || activeTab === "hotels") &&
+              hotelReservations.map((hotel) => {
+                const statusMeta = formatStatusLabel(hotel.status);
+                const StatusIcon = statusMeta.icon;
+                const isSimulating = simulatingId === hotel.id;
+                const isPaid = hotel.paymentStatus === "paid" || hotel.paymentMethod === "upi_advance";
+
+                return (
+                  <div
+                    key={hotel.id}
+                    className="overflow-hidden rounded-2xl border bg-card p-5 shadow-xs transition hover:border-primary/40"
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="flex items-center gap-1 rounded bg-indigo-500/10 px-2 py-0.5 text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
+                            <Hotel className="size-3" /> Hotel Room Reservation
+                          </span>
+                          <span
+                            className={`flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${statusMeta.colorClass}`}
+                          >
+                            <StatusIcon className="size-3" /> {statusMeta.label}
+                          </span>
+                          <span
+                            className={`flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${
+                              isPaid
+                                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                : "bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30"
+                            }`}
+                          >
+                            {isPaid ? "📱 UPI: Paid" : "🏨 Pay at Hotel Desk"}
+                          </span>
+                        </div>
+
+                        <h3 className="mt-2 font-display text-lg font-bold">{hotel.hotelName}</h3>
+
+                        {hotel.hotelAddress && (
+                          <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                            <MapPin className="size-3 text-muted-foreground/70" /> {hotel.hotelAddress}
+                          </p>
+                        )}
+
+                        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                          <span className="font-semibold text-foreground">
+                            🛏️ {hotel.roomType} Room ({hotel.roomCount} {hotel.roomCount === 1 ? "room" : "rooms"})
+                          </span>
+                          <span>•</span>
+                          <span>
+                            👥 {hotel.guestCount} {hotel.guestCount === 1 ? "Guest" : "Guests"}
+                          </span>
+                          <span>•</span>
+                          <span>
+                            Check-in:{" "}
+                            <strong className="text-foreground">
+                              {new Date(hotel.checkInDate).toLocaleString([], {
+                                month: "short",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </strong>
+                          </span>
+                          <span>•</span>
+                          <span>👤 {hotel.customerName} ({hotel.customerPhone})</span>
+                        </div>
+                      </div>
+
+                      {/* Total & Action Buttons */}
+                      <div className="flex flex-col items-start gap-2 border-t pt-3 sm:items-end sm:border-t-0 sm:pt-0">
+                        <div className="text-left sm:text-right">
+                          <span className="text-[11px] text-muted-foreground">
+                            {isPaid ? "Payment Verified" : "Estimated Room Total"}
+                          </span>
+                          <p className="font-display text-xl font-black text-primary">₹{hotel.totalAmount}</p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          {!isPaid && (
+                            <Button
+                              type="button"
+                              variant="signal"
+                              size="sm"
+                              onClick={() =>
+                                setUpiModal({
+                                  id: hotel.id,
+                                  name: hotel.hotelName,
+                                  amount: hotel.totalAmount,
+                                  type: "hotel",
+                                })
+                              }
+                              className="h-8 gap-1.5 text-xs font-semibold"
+                            >
+                              <Smartphone className="size-3.5" /> Pay UPI Now
+                            </Button>
+                          )}
+
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            disabled={isSimulating}
+                            onClick={() => handleAdvanceHotel(hotel.id)}
+                            className="h-8 gap-1.5 text-xs font-semibold"
+                          >
+                            <Sparkles className="size-3 text-amber-500" />
+                            {isSimulating ? "Simulating..." : "Simulate hotel response"}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between border-t pt-2 text-[10px] text-muted-foreground/80">
+                      <span>{hotel.prototypeDisclaimer}</span>
+                      <span>Booked on {new Date(hotel.createdAt).toLocaleDateString()}</span>
                     </div>
                   </div>
                 );

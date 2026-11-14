@@ -56,6 +56,31 @@ export type DbReservation = {
   updatedAt: string;
 };
 
+export type DbHotelReservation = {
+  id: string;
+  userId: string;
+  journeyId: string | null;
+  hotelId: string;
+  hotelName: string;
+  hotelAddress: string | null;
+  detourText: string | null;
+  checkIn: string;
+  guestCount: number;
+  roomCount: number;
+  roomType: string;
+  customerName: string;
+  customerPhone: string;
+  specialRequests: string | null;
+  paymentMethod: string;
+  totalAmount: number;
+  paymentStatus: "pending" | "paid";
+  upiRef: string | null;
+  status: OrderStatus;
+  prototypeDisclaimer: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type DbJourneyStop = {
   id: string;
   journeyId: string;
@@ -178,6 +203,31 @@ function getDb(): DatabaseSync {
       payment_method TEXT NOT NULL DEFAULT 'upi_at_table',
       status TEXT NOT NULL DEFAULT 'submitted',
       prototype_disclaimer TEXT NOT NULL DEFAULT 'Prototype: not confirmed by the restaurant',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS hotel_reservations (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      journey_id TEXT,
+      hotel_id TEXT NOT NULL,
+      hotel_name TEXT NOT NULL,
+      hotel_address TEXT,
+      detour_text TEXT,
+      check_in TEXT NOT NULL,
+      guest_count INTEGER NOT NULL,
+      room_count INTEGER NOT NULL,
+      room_type TEXT NOT NULL,
+      customer_name TEXT NOT NULL,
+      customer_phone TEXT NOT NULL,
+      special_requests TEXT,
+      payment_method TEXT NOT NULL DEFAULT 'pay_at_hotel',
+      total_amount INTEGER NOT NULL,
+      payment_status TEXT NOT NULL DEFAULT 'pending',
+      upi_ref TEXT,
+      status TEXT NOT NULL DEFAULT 'submitted',
+      prototype_disclaimer TEXT NOT NULL DEFAULT 'Prototype: not confirmed by the hotel',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -523,6 +573,140 @@ export function advanceReservationStatusInDb(reservationId: string): OrderStatus
   db.prepare("UPDATE reservation_requests SET status = ?, updated_at = ? WHERE id = ?").run(nextStatus, now, reservationId);
   return nextStatus;
 }
+
+// ==========================================
+// HOTEL RESERVATIONS & MERCHANT OPERATIONS
+// ==========================================
+
+export function saveHotelReservationToDb(params: Omit<DbHotelReservation, "id" | "status" | "prototypeDisclaimer" | "createdAt" | "updatedAt" | "paymentStatus" | "upiRef">): DbHotelReservation {
+  const db = getDb();
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const disclaimer = "Prototype: not confirmed by the hotel";
+
+  db.prepare(`
+    INSERT INTO hotel_reservations (
+      id, user_id, journey_id, hotel_id, hotel_name, hotel_address,
+      detour_text, check_in, guest_count, room_count, room_type,
+      customer_name, customer_phone, special_requests, payment_method,
+      total_amount, payment_status, upi_ref, status, prototype_disclaimer,
+      created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    params.userId,
+    params.journeyId ?? null,
+    params.hotelId,
+    params.hotelName,
+    params.hotelAddress ?? null,
+    params.detourText ?? null,
+    params.checkIn,
+    params.guestCount,
+    params.roomCount,
+    params.roomType,
+    params.customerName,
+    params.customerPhone,
+    params.specialRequests ?? null,
+    params.paymentMethod,
+    params.totalAmount,
+    "pending",
+    null,
+    "submitted",
+    disclaimer,
+    now,
+    now
+  );
+
+  return {
+    id,
+    ...params,
+    paymentStatus: "pending",
+    upiRef: null,
+    status: "submitted",
+    prototypeDisclaimer: disclaimer,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+export function listHotelReservationsFromDb(userId?: string): DbHotelReservation[] {
+  const db = getDb();
+  let rows: any[];
+  if (userId) {
+    rows = db.prepare("SELECT * FROM hotel_reservations WHERE user_id = ? ORDER BY created_at DESC").all(userId);
+  } else {
+    rows = db.prepare("SELECT * FROM hotel_reservations ORDER BY created_at DESC").all();
+  }
+
+  return rows.map((r) => ({
+    id: r.id,
+    userId: r.user_id,
+    journeyId: r.journey_id,
+    hotelId: r.hotel_id,
+    hotelName: r.hotel_name,
+    hotelAddress: r.hotel_address,
+    detourText: r.detour_text,
+    checkIn: r.check_in,
+    guestCount: r.guest_count,
+    roomCount: r.room_count,
+    roomType: r.room_type,
+    customerName: r.customer_name,
+    customerPhone: r.customer_phone,
+    specialRequests: r.special_requests,
+    paymentMethod: r.payment_method,
+    totalAmount: r.total_amount,
+    paymentStatus: r.payment_status || "pending",
+    upiRef: r.upi_ref,
+    status: r.status as OrderStatus,
+    prototypeDisclaimer: r.prototype_disclaimer,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  }));
+}
+
+export function advanceHotelReservationStatusInDb(reservationId: string): OrderStatus {
+  const db = getDb();
+  const row = db.prepare("SELECT status FROM hotel_reservations WHERE id = ?").get(reservationId) as any;
+  if (!row) throw new Error("Hotel reservation not found");
+
+  let nextStatus: OrderStatus = "submitted";
+  if (row.status === "submitted") {
+    nextStatus = "sent_to_restaurant";
+  } else if (row.status === "sent_to_restaurant") {
+    nextStatus = "confirmed";
+  } else {
+    nextStatus = "submitted";
+  }
+
+  const now = new Date().toISOString();
+  db.prepare("UPDATE hotel_reservations SET status = ?, updated_at = ? WHERE id = ?").run(nextStatus, now, reservationId);
+  return nextStatus;
+}
+
+export function updateMerchantOrderStatusInDb(type: "order" | "table" | "hotel", id: string, newStatus: OrderStatus): void {
+  const db = getDb();
+  const now = new Date().toISOString();
+  if (type === "order") {
+    db.prepare("UPDATE orders SET status = ?, updated_at = ? WHERE id = ?").run(newStatus, now, id);
+  } else if (type === "table") {
+    db.prepare("UPDATE reservation_requests SET status = ?, updated_at = ? WHERE id = ?").run(newStatus, now, id);
+  } else {
+    db.prepare("UPDATE hotel_reservations SET status = ?, updated_at = ? WHERE id = ?").run(newStatus, now, id);
+  }
+}
+
+export function markPaymentStatusInDb(type: "order" | "table" | "hotel", id: string, upiRef: string): void {
+  const db = getDb();
+  const now = new Date().toISOString();
+  if (type === "hotel") {
+    db.prepare("UPDATE hotel_reservations SET payment_status = 'paid', upi_ref = ?, updated_at = ? WHERE id = ?").run(upiRef, now, id);
+  } else if (type === "order") {
+    try {
+      db.prepare("UPDATE orders SET payment_status = 'paid', upi_ref = ?, updated_at = ? WHERE id = ?").run(upiRef, now, id);
+    } catch {}
+  }
+}
+
 
 // ==========================================
 // STAGE 7: JOURNEY STOPS IMPLEMENTATION

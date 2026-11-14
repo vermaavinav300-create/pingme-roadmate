@@ -39,6 +39,13 @@ export function AppHeader() {
           >
             Orders & Requests
           </Link>
+          <Link
+            to="/merchant"
+            className="rounded-md px-3 py-1.5 text-muted-foreground transition hover:text-foreground"
+            activeProps={{ className: "bg-secondary text-secondary-foreground" }}
+          >
+            Merchant Portal
+          </Link>
         </nav>
         <Button
           variant="ghost"

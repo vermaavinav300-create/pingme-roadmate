@@ -140,7 +140,7 @@ export function PlaceInput({ id, label, placeholder, value, onChange, marker }: 
               </button>
             </li>
           ))}
-          <li className="border-t px-3 py-1.5 text-[10px] text-muted-foreground">Suggestions by Google</li>
+          <li className="border-t px-3 py-1.5 text-[10px] text-muted-foreground">Search by OpenStreetMap Nominatim</li>
         </ul>
       )}
     </div>

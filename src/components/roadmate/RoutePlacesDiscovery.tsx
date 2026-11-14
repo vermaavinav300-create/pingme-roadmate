@@ -383,6 +383,37 @@ export function RoutePlacesDiscovery({
                     </Button>
                   </div>
                 )}
+
+                {/* Hotel Room Booking & Reservation Action */}
+                {place.category === "hotel" && (
+                  <div className="mt-3 flex items-center justify-between border-t pt-2.5">
+                    <span className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 flex items-center gap-1">
+                      <Hotel className="size-3.5" /> Rooms & Reservation
+                    </span>
+                    <Button
+                      asChild
+                      size="sm"
+                      variant="default"
+                      className="h-7 text-xs font-bold gap-1 bg-purple-600 hover:bg-purple-700 text-white"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Link
+                        to="/hotels/$hotelId"
+                        params={{ hotelId: place.id }}
+                        search={{
+                          name: place.name ?? undefined,
+                          address: place.address ?? undefined,
+                          detourKm,
+                          detourMin: `${detourMin} min`,
+                          alongRouteM: String(place.alongRouteM),
+                          journeyId: journeyId ?? undefined,
+                        }}
+                      >
+                        Book Room <ChevronRight className="size-3" />
+                      </Link>
+                    </Button>
+                  </div>
+                )}
               </div>
             );
           })}

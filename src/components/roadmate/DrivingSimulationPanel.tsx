@@ -30,6 +30,7 @@ import {
   formatDistance,
   formatDuration,
   getPointAlongPolyline,
+  haversineMeters,
   type LatLng,
 } from "@/lib/route-utils";
 import type { DbJourneyStop, UserPreferences } from "@/lib/orders-db.server";
@@ -72,6 +73,12 @@ export function DrivingSimulationPanel({
   const [isPlaying, setIsPlaying] = useState(false);
   const [speedMultiplier, setSpeedMultiplier] = useState<1 | 5 | 10>(5);
   const [currentMeters, setCurrentMeters] = useState(0);
+
+  // Live GPS tracking state
+  const [driveMode, setDriveMode] = useState<"simulation" | "real_gps">("simulation");
+  const [gpsStatus, setGpsStatus] = useState<"inactive" | "acquiring" | "active" | "denied">("inactive");
+  const [gpsSpeedKmh, setGpsSpeedKmh] = useState<number | null>(null);
+  const [gpsAccuracyM, setGpsAccuracyM] = useState<number | null>(null);
 
   // Alert thresholds: default [10, 5, 1] + user preference if set
   const alertThresholds = useMemo(() => {
@@ -126,6 +133,68 @@ export function DrivingSimulationPanel({
       }
     }
   };
+
+  // Live Device GPS Tracking
+  useEffect(() => {
+    if (driveMode !== "real_gps") {
+      setGpsStatus("inactive");
+      return;
+    }
+
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser");
+      setDriveMode("simulation");
+      return;
+    }
+
+    setIsPlaying(false);
+    setGpsStatus("acquiring");
+    toast.info("Requesting live GPS location from device...");
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        setGpsStatus("active");
+        const { latitude, longitude, speed, accuracy } = pos.coords;
+        const coords: LatLng = { lat: latitude, lng: longitude };
+        setGpsAccuracyM(Math.round(accuracy));
+        setGpsSpeedKmh(speed !== null && !isNaN(speed) ? Math.round(speed * 3.6) : 0);
+
+        onCarPositionChange(coords);
+
+        // Snap coordinates along route to estimate progress
+        if (points.length >= 2) {
+          let minDist = Infinity;
+          let bestAlong = 0;
+          let cumulative = 0;
+          for (let i = 0; i < points.length - 1; i++) {
+            const segDist = haversineMeters(points[i]!, points[i + 1]!);
+            const d = haversineMeters(coords, points[i]!);
+            if (d < minDist) {
+              minDist = d;
+              bestAlong = cumulative;
+            }
+            cumulative += segDist;
+          }
+          setCurrentMeters(bestAlong);
+          evaluateAlertsAtDistance(bestAlong);
+        }
+      },
+      (err) => {
+        console.warn("GPS error:", err);
+        setGpsStatus("denied");
+        toast.error(`GPS Error: ${err.message}. Please allow location permissions.`);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 3000,
+        timeout: 15000,
+      }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [driveMode, points]);
 
   // Playback Animation Loop
   const requestRef = useRef<number | null>(null);
@@ -229,12 +298,58 @@ export function DrivingSimulationPanel({
           </p>
         </div>
 
-        {/* Mandatory Transparency Disclaimer (Requirement 7 & 6) */}
-        <div className="rounded-lg bg-muted px-3 py-1.5 text-[11px] font-medium text-muted-foreground flex items-center gap-1.5 border">
-          <Info className="size-3.5 text-primary shrink-0" />
-          <span>Simulated journey (demo). Real GPS alerts would come in a later version.</span>
+        {/* Mode Selector: Simulation vs Live Device GPS */}
+        <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted p-1 text-xs font-bold border">
+            <button
+              type="button"
+              className={cn(
+                "rounded-lg px-3 py-1.5 flex items-center justify-center gap-1.5 transition",
+                driveMode === "simulation" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+              )}
+              onClick={() => setDriveMode("simulation")}
+            >
+              <Play className="size-3.5" /> Simulation
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "rounded-lg px-3 py-1.5 flex items-center justify-center gap-1.5 transition",
+                driveMode === "real_gps" ? "bg-emerald-600 text-white shadow-xs" : "text-muted-foreground hover:text-foreground"
+              )}
+              onClick={() => setDriveMode("real_gps")}
+            >
+              <Navigation className="size-3.5" /> 📡 Live Device GPS
+            </button>
+          </div>
         </div>
       </div>
+
+      {driveMode === "real_gps" && (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs flex flex-wrap items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-center gap-2 font-medium">
+            <span className="size-2 rounded-full bg-emerald-500 animate-ping" />
+            <span className="font-bold text-foreground">
+              {gpsStatus === "active" ? "🟢 Live Device GPS Active" : gpsStatus === "acquiring" ? "🟡 Acquiring GPS Signal..." : "🔴 GPS Inactive"}
+            </span>
+            {gpsStatus === "active" && (
+              <span className="text-muted-foreground text-[11px]">
+                (Tracking phone/laptop sensors in real-time)
+              </span>
+            )}
+          </div>
+          {gpsStatus === "active" && (
+            <div className="flex items-center gap-3 font-mono font-bold text-[11px]">
+              <span className="rounded bg-background px-2 py-0.5 border">
+                Speed: {gpsSpeedKmh !== null ? `${gpsSpeedKmh} km/h` : "0 km/h"}
+              </span>
+              <span className="rounded bg-background px-2 py-0.5 border">
+                Accuracy: ±{gpsAccuracyM ?? 10}m
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Active High-Priority Alert Banner (Requirement 2, 3, 4) */}
       {activeAlert && (
@@ -346,7 +461,11 @@ export function DrivingSimulationPanel({
             size="sm"
             variant={isPlaying ? "secondary" : "default"}
             className="font-bold gap-1.5 h-9"
-            onClick={() => setIsPlaying(!isPlaying)}
+            disabled={driveMode === "real_gps"}
+            onClick={() => {
+              if (driveMode === "real_gps") setDriveMode("simulation");
+              setIsPlaying(!isPlaying);
+            }}
           >
             {isPlaying ? (
               <>

@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, BellRing, Fuel, Hotel, QrCode, Route as RouteIcon, UtensilsCrossed } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, BellRing, Fuel, Hotel, QrCode, Route as RouteIcon, UtensilsCrossed, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PingMeMark } from "@/components/roadmate/PingMeMark";
-import { SimulatedBadge } from "@/components/roadmate/SimulatedBadge";
+import { VehicleQrModal } from "@/components/roadmate/VehicleQrModal";
 import heroImg from "@/assets/highway-hero.jpg";
 
 export const Route = createFileRoute("/")({
@@ -33,8 +34,11 @@ const steps = [
 ];
 
 function Landing() {
+  const [showQrModal, setShowQrModal] = useState(false);
+
   return (
     <div className="min-h-screen">
+      <VehicleQrModal open={showQrModal} onOpenChange={setShowQrModal} />
       <section className="relative isolate flex min-h-[88vh] flex-col overflow-hidden">
         <img
           src={heroImg}
@@ -98,15 +102,24 @@ function Landing() {
             <p className="text-xs font-bold uppercase tracking-widest opacity-80">Inside the PingME super app</p>
             <h2 className="mt-2 text-3xl font-extrabold">Your car's PingME QR, now a trip companion.</h2>
             <p className="mt-3 max-w-lg opacity-90">
-              Scan your vehicle's PingME tag to start RoadMate, and share a journey QR so family can follow your
-              planned route.
+              Generate an official PingME tag for your vehicle to launch RoadMate, and create a live journey QR so family can follow your planned route.
             </p>
-            <div className="mt-5 flex flex-wrap gap-2">
-              <SimulatedBadge label="Concept — not linked to PingME servers" />
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <Button
+                variant="signal"
+                size="lg"
+                className="font-bold gap-2"
+                onClick={() => setShowQrModal(true)}
+              >
+                <QrCode className="size-4" /> Open Vehicle & Trip QR Generator
+              </Button>
             </div>
           </div>
-          <div className="flex items-center justify-center gap-6">
-            <QrCode className="size-24 text-signal" />
+          <div
+            className="flex flex-col sm:flex-row items-center justify-center gap-6 cursor-pointer rounded-2xl bg-black/20 p-6 transition hover:bg-black/30"
+            onClick={() => setShowQrModal(true)}
+          >
+            <QrCode className="size-24 text-signal animate-pulse" />
             <div className="grid gap-3 text-sm font-semibold">
               <span className="flex items-center gap-2"><UtensilsCrossed className="size-4 text-signal" /> Restaurants</span>
               <span className="flex items-center gap-2"><Fuel className="size-4 text-signal" /> Petrol pumps</span>
@@ -117,7 +130,7 @@ function Landing() {
       </section>
 
       <footer className="border-t py-6 text-center text-xs text-muted-foreground">
-        PingME RoadMate · hackathon prototype · Map data © Google
+        PingME RoadMate · hackathon prototype · Map data © OpenStreetMap contributors
       </footer>
     </div>
   );
